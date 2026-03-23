@@ -19,13 +19,13 @@ public class PlayerController : MonoBehaviour
     public Camera mainCamera;
 
     // runtime
-    private Rigidbody rb;
-    private InputAction moveAction;
-    private Vector2 moveInput = Vector2.zero;
+    private Rigidbody _rb;
+    private InputAction _moveAction;
+    private Vector2 _moveInput = Vector2.zero;
 
     void Awake()
     {
-        rb = GetComponent<Rigidbody>();
+        _rb = GetComponent<Rigidbody>();
         if (mainCamera == null)
             mainCamera = Camera.main;
     }
@@ -45,44 +45,44 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        moveAction = map.FindAction("Move", throwIfNotFound: false);
-        if (moveAction == null)
+        _moveAction = map.FindAction("Move", throwIfNotFound: false);
+        if (_moveAction == null)
         {
             Debug.LogWarning("PlayerController: action 'Move' não encontrada no action map 'Player'.");
             return;
         }
 
-        moveAction.performed += OnMovePerformed;
-        moveAction.canceled += OnMoveCanceled;
-        moveAction.Enable();
+        _moveAction.performed += OnMovePerformed;
+        _moveAction.canceled += OnMoveCanceled;
+        _moveAction.Enable();
     }
 
     void OnDisable()
     {
-        if (moveAction != null)
+        if (_moveAction != null)
         {
-            moveAction.performed -= OnMovePerformed;
-            moveAction.canceled -= OnMoveCanceled;
-            moveAction.Disable();
+            _moveAction.performed -= OnMovePerformed;
+            _moveAction.canceled -= OnMoveCanceled;
+            _moveAction.Disable();
         }
     }
 
     private void OnMovePerformed(InputAction.CallbackContext ctx)
     {
-        moveInput = ctx.ReadValue<Vector2>();
+        _moveInput = ctx.ReadValue<Vector2>();
     }
 
     private void OnMoveCanceled(InputAction.CallbackContext ctx)
     {
-        moveInput = Vector2.zero;
+        _moveInput = Vector2.zero;
     }
 
     void FixedUpdate()
     {
-        if (rb == null) return;
+        if (_rb == null) return;
 
         // leitura do input em Vector3 (x,z)
-        Vector3 input = new Vector3(moveInput.x, 0f, moveInput.y);
+        Vector3 input = new Vector3(_moveInput.x, 0f, _moveInput.y);
         if (input.sqrMagnitude < 1e-6f) return; // nada pra fazer
 
         Vector3 moveDir;
@@ -95,7 +95,7 @@ public class PlayerController : MonoBehaviour
             Vector3 camRight = mainCamera.transform.right;
             camRight.y = 0f;
             camRight.Normalize();
-            moveDir = camRight * input.x + camForward * input.z;
+            moveDir = camRight * _moveInput.x + camForward * _moveInput.y;
         }
         else
         {
@@ -105,15 +105,15 @@ public class PlayerController : MonoBehaviour
         if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
 
         // aplicar força usando aceleração (independente de massa)
-        rb.AddForce(moveDir * speed, ForceMode.Acceleration);
+        _rb.AddForce(moveDir * speed, ForceMode.Acceleration);
 
         // limitar velocidade horizontal (manter componente Y para gravidade/salto)
         if (maxSpeed > 0f)
         {
-            Vector3 vel = rb.linearVelocity;
+            Vector3 vel = _rb.linearVelocity;
             Vector3 horizontal = new Vector3(vel.x, 0f, vel.z);
             Vector3 limited = Vector3.ClampMagnitude(horizontal, maxSpeed);
-            rb.linearVelocity = new Vector3(limited.x, vel.y, limited.z);
+            _rb.linearVelocity = new Vector3(limited.x, vel.y, limited.z);
         }
     }
 
