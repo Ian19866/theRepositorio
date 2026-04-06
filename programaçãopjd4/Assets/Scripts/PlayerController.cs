@@ -7,6 +7,8 @@ public class PlayerController : MonoBehaviour
     [Header("Input")]
     [Tooltip("Arraste aqui o asset InputAction (InputSystem_Actions)")]
     public InputActionAsset actions;
+    public string actionMapName = "Player";
+    public string moveActionName = "Move";
 
     [Header("Movement")]
     [Tooltip("Força aplicada para movimentar a bola (aceleração)")]
@@ -22,33 +24,47 @@ public class PlayerController : MonoBehaviour
     private Rigidbody _rb;
     private InputAction _moveAction;
     private Vector2 _moveInput = Vector2.zero;
+    private Vector3 _moveDir = Vector3.zero;
 
     void Awake()
     {
         _rb = GetComponent<Rigidbody>();
+        if (mainCamera == null) mainCamera = Camera.main;
         if (mainCamera == null)
-            mainCamera = Camera.main;
+        {
+            // fallback: try to find any Camera in the scene
+            var cam = Object.FindObjectOfType<Camera>();
+            if (cam != null)
+            {
+                mainCamera = cam;
+                Debug.LogWarning("PlayerController: Camera.main was null; falling back to first Camera found in scene.");
+            }
+            else
+            {
+                Debug.LogWarning("PlayerController: no Camera found in scene. Camera-relative movement will be disabled.");
+                useCameraRelative = false;
+            }
+        }
     }
 
     void OnEnable()
     {
         if (actions == null)
         {
-            Debug.LogWarning("PlayerController: nenhum InputActionAsset atribuído (campo 'actions').");
+            Debug.LogWarning("PlayerController: no InputActionAsset assigned.");
             return;
         }
-
-        var map = actions.FindActionMap("Player", throwIfNotFound: false);
+        var map = actions.FindActionMap(actionMapName, throwIfNotFound: false);
         if (map == null)
         {
-            Debug.LogWarning("PlayerController: action map 'Player' não encontrado no InputActionAsset.");
+            Debug.LogWarning($"PlayerController: action map '{actionMapName}' not found.");
             return;
         }
 
-        _moveAction = map.FindAction("Move", throwIfNotFound: false);
+        _moveAction = map.FindAction(moveActionName, throwIfNotFound: false);
         if (_moveAction == null)
         {
-            Debug.LogWarning("PlayerController: action 'Move' não encontrada no action map 'Player'.");
+            Debug.LogWarning($"PlayerController: action '{moveActionName}' not found in map '{actionMapName}'.");
             return;
         }
 
@@ -81,35 +97,33 @@ public class PlayerController : MonoBehaviour
     {
         if (_rb == null) return;
 
-        // leitura do input em Vector3 (x,z)
         Vector3 input = new Vector3(_moveInput.x, 0f, _moveInput.y);
-        if (input.sqrMagnitude < 1e-6f) return; // nada pra fazer
+        if (input.sqrMagnitude < 1e-6f) return; // nothing to do
 
-        Vector3 moveDir;
         if (useCameraRelative && mainCamera != null)
         {
-            // projetar forward e right da câmera no plano XZ
             Vector3 camForward = mainCamera.transform.forward;
             camForward.y = 0f;
             camForward.Normalize();
             Vector3 camRight = mainCamera.transform.right;
             camRight.y = 0f;
             camRight.Normalize();
-            moveDir = camRight * _moveInput.x + camForward * _moveInput.y;
+            _moveDir = camRight * input.x + camForward * input.z;
         }
         else
         {
-            moveDir = input;
+            _moveDir = input;
         }
 
-        if (moveDir.sqrMagnitude > 1f) moveDir.Normalize();
+        if (_moveDir.sqrMagnitude > 1f) _moveDir.Normalize();
 
-        // aplicar força usando aceleração (independente de massa)
-        _rb.AddForce(moveDir * speed, ForceMode.Acceleration);
+        // apply acceleration-based movement
+        _rb.AddForce(_moveDir * speed, ForceMode.Acceleration);
 
-        // limitar velocidade horizontal (manter componente Y para gravidade/salto)
+        // clamp horizontal speed
         if (maxSpeed > 0f)
         {
+            // use linearVelocity to avoid obsolete velocity usage
             Vector3 vel = _rb.linearVelocity;
             Vector3 horizontal = new Vector3(vel.x, 0f, vel.z);
             Vector3 limited = Vector3.ClampMagnitude(horizontal, maxSpeed);
@@ -119,9 +133,7 @@ public class PlayerController : MonoBehaviour
 
     void OnValidate()
     {
-        // facilita configuração no editor
-        if (mainCamera == null)
-            mainCamera = Camera.main;
+        if (mainCamera == null) mainCamera = Camera.main;
         if (speed < 0f) speed = 0f;
         if (maxSpeed < 0f) maxSpeed = 0f;
     }
